@@ -18,7 +18,8 @@
 #define PIN_BTN_RIGHT 6             // pin button right
 #define PIN_LGHT_FRONT 3            // pin led data light front
 #define PIN_LGHT_BACK 4             // pin led data light back
-#define PIN_LGHT_CTRL 7             // pin light controller
+#define PIN_LGHT_CTRL 7             // pin light switch
+#define PIN_LGHT_REQ 8              // pin light request from controller
 #define PIN_LED 9                   // pin status led (PWM)
 #define PIN_BR A0                   // pin brightness sensor (A0/14)
 
@@ -45,9 +46,9 @@
 
 // draw definitions
 #define DRAW_DEFAULT          0x00  // 0000 0000 - no special draw
-#define DRAW_LEFT             0x03  // 0000 0011 - left animation
-#define DRAW_RIGHT            0x04  // 0000 0100 - right animation
-#define DRAW_SOS              0x05  // 0000 0101 - sos animation
+#define DRAW_LEFT             0x01  // 0000 0001 - left animation
+#define DRAW_RIGHT            0x02  // 0000 0010 - right animation
+#define DRAW_SOS              0x03  // 0000 0011 - sos animation
 
 // number of brightness readings
 #define NUM_READ 50
@@ -73,11 +74,11 @@ int gBrightness = 100;              // brightness for lights
 int gBrightnessChange = 30;         // brightness change rate
 int gBlinkBrightness = 240;         // blink brightness for turn lights
 int gBlinkInterval = 900;           // ms between blink
-int gBlinkDuration = 750;           // ms for blink light on
+int gBlinkDuration = 1400;          // ms for blink light on
 bool gBlinkActive = false;          // will be true while blink duration is active (turn lights are on)
 float gFrontBrightnessFactor = 0.9; // front leds brightness factor
 float gBackBrightnessFactor = 1.1;  // back leds brightness factor
-float gBlinkGrowFactor = 0.4;       // blink grow factor (part of time to use for grow animation)
+float gBlinkGrowFactor = 0.33;      // blink grow factor (part of time to use for grow animation)
 float gBlinkDarkenFactor = 0.96;    // blink darken factor (how much to dim the light)
 
 // button values
@@ -106,7 +107,8 @@ int gRedrawInterval = 1000 / FRAMES_PER_SECOND; // ms for redraw interval
 
 // light values
 bool gLightsOn = false;             // is lights active
-bool gLightsAdditional = false;     // is additional lights (led) active
+bool gLightsController = false;     // is lights activated in controller
+bool gLightsAdditional = false;     // is additional lights active
 bool gLeftActive = false;           // is left turn light active
 bool gRightActive = false;          // is right turn light active
 bool gSosActive = false;            // is sos mode active
@@ -115,20 +117,17 @@ bool gSosActive = false;            // is sos mode active
  * Setup
  */
 void setup() {
-  // delay for recovery
-  delay(2000);
   // serial setup
   Serial.begin(9600);
-
   // pin setup
   pinMode(PIN_BTN_LEFT, INPUT_PULLUP);    // right button
   pinMode(PIN_BTN_RIGHT, INPUT_PULLUP);   // left button
+  pinMode(PIN_LGHT_REQ, INPUT_PULLUP);    // light request from controller
   pinMode(PIN_BR, INPUT);                 // brightness sensor
   pinMode(PIN_LGHT_CTRL, OUTPUT);         // light switch
   pinMode(PIN_LGHT_FRONT, OUTPUT);        // front led data
   pinMode(PIN_LGHT_BACK, OUTPUT);         // back led data
   pinMode(PIN_LED, OUTPUT);               // status led
-
   // prepare leds
   FastLED.addLeds<LED_TYPE, PIN_LGHT_FRONT, COLOR_ORDER>(gLedsFront, NUM_LEDS);
   FastLED.addLeds<LED_TYPE, PIN_LGHT_BACK, COLOR_ORDER>(gLedsBack, NUM_LEDS);
@@ -137,10 +136,12 @@ void setup() {
   FastLED.setBrightness(255); // set default brightness to max
   FastLED.setDither(0);  // stops flikering in animations.
   FastLED.setMaxPowerInVoltsAndMilliamps(5, 1100);
-
   // attach interupts for buttons
   attachInterrupt(digitalPinToInterrupt(PIN_BTN_LEFT), _btnLeftPress, RISING);
   attachInterrupt(digitalPinToInterrupt(PIN_BTN_RIGHT), _btnRightPress, RISING);
+  // set light output to inital values
+  digitalWrite(PIN_LGHT_CTRL, gLightsOn);
+  digitalWrite(PIN_LGHT_REQ, gLightsController);
 }
 
 /*
@@ -492,6 +493,7 @@ bool isLightBlinking() {
  */
 void readSensors() {
   updateSensorBrightness();
+  updateLightRequestFromController();
 }
 
 /**
@@ -528,6 +530,18 @@ void updateSensorBrightness() {
 }
 
 /**
+ * @brief Updates the light request from the controller.
+ */
+void updateLightRequestFromController() {
+  bool current = (bool)digitalRead(PIN_LGHT_REQ);
+  if (current != gLightsController) {
+    // update light state only if the state has changed
+    gLightsController = current;
+    gLightsOn = current;
+  }
+}
+
+/**
  * @brief Checks the button for a complete sequence and processes
  *
  * button flags within sequence.
@@ -541,15 +555,6 @@ void updateSensorBrightness() {
 bool checkButtonState(int pin, uint64_t *time, int *state, int *flags) {
   bool result = false;
   int stateNew = digitalRead(pin);
-
-  Serial.print("pin: ");
-  Serial.print(pin);
-  Serial.print(" ");
-  Serial.print("state: ");
-  Serial.print(*state);
-  Serial.print(" ");
-  Serial.print("stateNew: ");
-  Serial.println(stateNew);
 
   // check for valid time
   if (*time == 0) {

@@ -4,7 +4,7 @@ Arduino based turn signals for bikes or ebikes.
 
 **Available modes:**
 
-* turn on bike light
+* turn on bike light (activated by buttons or by controller)
 
 * turn on additional led lights
 
