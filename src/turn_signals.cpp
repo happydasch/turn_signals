@@ -53,7 +53,7 @@
 // number of brightness readings
 #define NUM_READ 50
 // debug messages
-#define DEBUG 0
+#define DEBUG false
 // frames / drawing
 #define FRAMES_PER_SECOND   60
 #define LED_TYPE            WS2812B
@@ -822,7 +822,9 @@ void _btn_right_press() {
  */
 void setup() {
   // serial setup
+  #if DEBUG == true
   Serial.begin(9600);
+  #endif
   // pin setup
   pinMode(PIN_BTN_LEFT, INPUT_PULLUP);    // right button
   pinMode(PIN_BTN_RIGHT, INPUT_PULLUP);   // left button
@@ -884,4 +886,25 @@ void loop() {
 
   // update light switch
   update_light_switch();
+
+  #if DEBUG == true
+  // debug output
+  Serial.print("Lights: ");
+  Serial.print(g_lights_on);
+  Serial.print(", Controller: ");
+  Serial.print(g_lights_controller);
+  Serial.print(", Additional: ");
+  Serial.print(g_lights_additional);
+  Serial.print(", Left active: ");
+  Serial.print(g_left_active);
+  Serial.print(", Right active: ");
+  Serial.print(g_right_active);
+  Serial.print(", Sos active: ");
+  Serial.print(g_sos_active);
+  Serial.print(", Draw lights: ");
+  Serial.print(g_draw_lights);
+  Serial.print(", Draw mode: ");
+  Serial.print(g_draw_mode);
+  Serial.println();
+  #endif
 }

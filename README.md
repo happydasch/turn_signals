@@ -28,3 +28,7 @@ Arduino based turn signals for bikes or ebikes.
 
 * Tribble click on both buttons
   Sos mode
+
+## STL
+
+The STL models for the turn lights can be found in `src/`.
