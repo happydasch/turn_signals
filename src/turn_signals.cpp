@@ -67,19 +67,19 @@ CRGBArray<NUM_LEDS> g_leds_back;      // back leds (left and right)
 uint64_t now = 0;
 uint64_t g_blink_timer = 0;           // ms for blink timer
 uint64_t g_blink_timeout = 20000;     // ms for blink timeout
+uint64_t g_click_gap = 500;           // ms click period: between clicks for multiple clicks
+uint64_t g_hold_time = 800;           // ms hold period: how long to wait for press+hold event
+uint64_t g_blink_interval = 400;      // ms between blink
+uint64_t g_blink_duration = 600;      // ms for blink light on
 int g_led_brightness = 0;             // brightness for status led
-int g_click_gap = 750;                // max ms between clicks for multiple clicks
-int g_hold_time = 1250;               // ms hold period: how long to wait for press+hold event
 int g_brightness = 100;               // brightness for lights
 int g_brightness_change = 30;         // brightness change rate
 int g_blink_brightness = 240;         // blink brightness for turn lights
-int g_blink_interval = 400;           // ms between blink
-int g_blink_duration = 600;           // ms for blink light on
 bool g_blink_active = false;          // will be true while blink duration is active (turn lights are on)
+float g_blink_grow_factor = 0.4;      // blink grow factor (part of time to use for grow animation)
+float g_blink_darken_factor = 0.96;   // blink darken factor (how much to dim the light)
 float g_front_brightness_factor = 0.9;  // front leds brightness factor
 float g_back_brightness_factor = 1.1;   // back leds brightness factor
-float g_blink_grow_factor = 0.33;     // blink grow factor (part of time to use for grow animation)
-float g_blink_darken_factor = 0.96;   // blink darken factor (how much to dim the light)
 
 // button values
 uint64_t g_time_left = 0;             // ms for left button timer
@@ -112,7 +112,6 @@ bool g_lights_additional = false;     // is additional lights active
 bool g_left_active = false;           // is left turn light active
 bool g_right_active = false;          // is right turn light active
 bool g_sos_active = false;            // is sos mode active
-
 
 /**
  * @brief Updates the average of brightness readings.
@@ -198,7 +197,7 @@ bool check_button_state(int pin, uint64_t *time, int *state, int *flags) {
   } else {
     // state did not change
     if (*state == LOW) {
-      if (int(now - *time) > g_hold_time) {
+      if (now - *time > g_hold_time) {
         // button hold
         *flags |= FLAG_HOLD;
       }
@@ -255,10 +254,7 @@ int process_light_flags() {
   }
   // tribble click or hold on right button - lighter
   if (g_flags_right & FLAG_HOLD || g_flags_right & FLAG_TRIBBLE_CLICK) {
-    if (g_lights_additional) {
-      return FUNC_LIGHTER;
-    }
-    return FUNC_NONE;
+    return FUNC_LIGHTER;
   }
   // double click on left button - turn left forced
   if (g_flags_left & FLAG_DOUBLE_CLICK && g_flags_right == FLAG_NONE) {
@@ -266,10 +262,7 @@ int process_light_flags() {
   }
   // tribble click hold on left button - darker
   if (g_flags_left & FLAG_HOLD || g_flags_left & FLAG_TRIBBLE_CLICK) {
-    if (g_lights_additional) {
-      return FUNC_DARKER;
-    }
-    return FUNC_NONE;
+    return FUNC_DARKER;
   }
   // single click on left button - turn left
   if (g_flags_left & FLAG_CLICK && g_flags_right == FLAG_NONE) {
@@ -416,10 +409,18 @@ void process_light_function(int func) {
     case FUNC_LIGHTER:
       g_brightness += g_brightness_change;
       g_brightness = min(g_brightness, 255);
+      if (!g_lights_additional) {
+        g_lights_additional = true;
+      }
       break;
     case FUNC_DARKER:
       g_brightness -= g_brightness_change;
       g_brightness = max(g_brightness, 0);
+      if (g_brightness == 0) {
+        g_lights_additional = false;
+      } else if (!g_lights_additional) {
+        g_lights_additional = true;
+      }
       break;
   }
 }
@@ -683,7 +684,6 @@ void scene_anim_sos() {
     draw_right_side();
   }
 }
-
 
 /**
  * @brief Draws the scene: Left Animation.
