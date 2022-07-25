@@ -159,9 +159,6 @@ void update_sensor_brightness() {
       g_brightness_on = false;
       g_lights_on = false;
     }
-    Serial.print("brightness: ");
-    Serial.print(g_brightness_avg);
-    Serial.println();
   }
 }
 
@@ -173,7 +170,9 @@ void update_light_request_from_controller() {
   if (current != g_lights_controller) {
     // update light state only if the state has changed
     g_lights_controller = current;
-    g_lights_on = current;
+    if (g_brightness_auto && !g_brightness_on) {
+      g_lights_on = current;
+    }
   }
 }
 
@@ -365,6 +364,9 @@ void process_light_function(int func) {
       } else {
         if (g_lights_on) {
           g_lights_on = false;
+          if (g_brightness_auto) {
+            g_brightness_auto = false;
+          }
         } else {
           g_lights_on = true;
         }
@@ -455,9 +457,6 @@ void update_light_switch() {
       set_light_switch(true);
     }
   } else {
-    if (g_brightness_auto) {
-      g_brightness_auto = false;
-    }
     if (g_lights_additional) {
       set_light_switch(false);
     } else if (!g_lights_additional && !g_draw_lights) {
