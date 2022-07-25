@@ -51,11 +51,12 @@
 #define DRAW_SOS              0x03  // 0000 0011 - sos animation
 
 // number of brightness readings
-#define NUM_READ              50
-// threshold for automatic light switch on
-#define THRESHOLD_AUTO_ON     250
+#define NUM_READ              25
+// threshold for automatic light switch on/off
+#define THRESHOLD_AUTO_ON     80
+#define THRESHOLD_AUTO_OFF    180
 // debug messages
-#define DEBUG                 false
+#define DEBUG                 true
 // frames / drawing
 #define FRAMES_PER_SECOND     60
 #define LED_TYPE              WS2812B
@@ -97,7 +98,7 @@ int g_brightness_interval = 200;      // ms for brightness level update
 int g_sensor_brightness = 0;          // current brightness from sensor
 int g_brightness_readings[NUM_READ];  // brightness readings
 int g_brightness_avg;                 // brightness readings average
-bool g_brightness_autolight = true;   // should light be switched on automatically when brightness is low
+bool g_brightness_auto = true;   // should light be switched on automatically when brightness is low
 bool g_brightness_on = false;         // is light on by brightness sensor
 
 // draw values
@@ -148,14 +149,19 @@ void update_sensor_brightness() {
     g_brightness_avg = 999;
   }
   g_brightness_timer = now;
-  if (g_brightness_autolight) {
-    if (!g_brightness_on && g_brightness_avg <= THRESHOLD_AUTO_ON) {
+  if (g_brightness_auto) {
+    if (!g_brightness_on && g_brightness_avg < THRESHOLD_AUTO_ON) {
       // only switch lights on one time when reading is below threshold
-      g_lights_on = true;
       g_brightness_on = true;
-    } else if (g_brightness_avg > THRESHOLD_AUTO_ON) {
+      g_lights_on = true;
+    } else if (g_brightness_on && g_brightness_avg > THRESHOLD_AUTO_OFF) {
+      // switch lights on when reading is above threshold
       g_brightness_on = false;
+      g_lights_on = false;
     }
+    Serial.print("brightness: ");
+    Serial.print(g_brightness_avg);
+    Serial.println();
   }
 }
 
@@ -449,6 +455,9 @@ void update_light_switch() {
       set_light_switch(true);
     }
   } else {
+    if (g_brightness_auto) {
+      g_brightness_auto = false;
+    }
     if (g_lights_additional) {
       set_light_switch(false);
     } else if (!g_lights_additional && !g_draw_lights) {
@@ -902,7 +911,7 @@ void loop() {
 
   #if DEBUG == true
   // debug output
-  Serial.print("Lights: ");
+  /*Serial.print("Lights: ");
   Serial.print(g_lights_on);
   Serial.print(", Controller: ");
   Serial.print(g_lights_controller);
@@ -918,6 +927,8 @@ void loop() {
   Serial.print(g_draw_lights);
   Serial.print(", Draw mode: ");
   Serial.print(g_draw_mode);
-  Serial.println();
+  Serial.print("Brightness:");
+  Serial.print(g_brightness_avg);
+  Serial.println();*/
   #endif
 }

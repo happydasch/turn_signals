@@ -6,7 +6,11 @@ Arduino based turn signals for bikes or ebikes.
 
 * turn on bike light (activated by buttons or by controller)
 
+* turn on bike light automatically using a brightness sensor
+
 * turn on additional led lights
+
+* increase and decrease brightness of additional lights
 
 * animated led turn signals
 
@@ -28,6 +32,12 @@ Arduino based turn signals for bikes or ebikes.
 
 * Tribble click on both buttons
   Sos mode
+
+* Hold left button
+  Additional led lights darker / off if switched on and no brightness
+
+* Hold right button
+  Additional led lights brighter / on if not switched on
 
 ## STL
 
