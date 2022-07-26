@@ -106,6 +106,7 @@ double g_brightness_avg = 0;          // brightness readings average
 double g_brightness_long_avg = 0;     // brightness readings average over an longer period
 bool g_brightness_auto = AUTO_ON_OFF; // should light be switched on automatically when brightness is low
 bool g_brightness_on = false;         // is light on by brightness sensor
+bool g_brightness_off = false;        // switch to notify about off request from controller
 
 // draw values
 uint64_t g_draw_mode_timer = 0;       // time a draw mode was set last
@@ -162,18 +163,16 @@ void update_sensor_brightness() {
   g_brightness_long_avg += g_brightness_avg / (NUM_READ_AVG * NUM_READ_LONG_AVG);
   g_brightness_timer = now;
 
-  if (AUTO_ON_OFF && g_brightness_auto) {
+  if (AUTO_ON_OFF && g_brightness_auto && !g_brightness_off) {
     if (!g_brightness_on && g_brightness_avg < THRESHOLD_AUTO_ON) {
       // only switch lights on one time when reading is below threshold
       g_brightness_on = true;
-      g_lights_on = true;
       g_brightness_long_avg = g_brightness_avg;
     } else if (g_brightness_on
         && g_brightness_avg > THRESHOLD_AUTO_OFF
         && g_brightness_long_avg > THRESHOLD_AUTO_OFF) {
       // switch lights on when reading is above long threshold (to prevent flickering)
       g_brightness_on = false;
-      g_lights_on = false;
     }
   }
 }
@@ -186,9 +185,8 @@ void update_light_request_from_controller() {
   if (current != g_lights_controller) {
     // update light state only if the state has changed
     g_lights_controller = current;
-    if (!g_brightness_auto || (g_brightness_auto && !g_brightness_on)) {
-      g_lights_on = current;
-    }
+    g_lights_on = current;
+    g_brightness_off = !current;
   }
 }
 
@@ -382,11 +380,13 @@ void process_light_function(int func) {
           g_lights_on = false;
           if (AUTO_ON_OFF) {
             g_brightness_auto = false;
+            g_brightness_on = false;
           }
         } else {
           g_lights_on = true;
           if (AUTO_ON_OFF) {
             g_brightness_auto = true;
+            g_brightness_off = false;
           }
         }
       }
@@ -469,7 +469,7 @@ void process_light_function(int func) {
  * @brief Updates the light switch that controls the lights.
  */
 void update_light_switch() {
-  if (g_lights_on) {
+  if (g_lights_on || (g_brightness_on && !g_brightness_off)) {
     if (g_lights_additional && g_draw_lights) {
       set_light_switch(true);
     } else if (!g_lights_additional) {
