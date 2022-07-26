@@ -51,12 +51,17 @@
 #define DRAW_SOS              0x03  // 0000 0011 - sos animation
 
 // number of brightness readings
-#define NUM_READ              25
+#define NUM_READ_AVG          25    // number of brightness readings to average
+#define NUM_READ_LONG_AVG     5     // number of readings for long average
+
 // threshold for automatic light switch on/off
+#define AUTO_ON_OFF           true
 #define THRESHOLD_AUTO_ON     80
-#define THRESHOLD_AUTO_OFF    180
+#define THRESHOLD_AUTO_OFF    140
+
 // debug messages
-#define DEBUG                 true
+#define DEBUG                 false
+
 // frames / drawing
 #define FRAMES_PER_SECOND     60
 #define LED_TYPE              WS2812B
@@ -95,10 +100,11 @@ int g_flags_right = 0x00;             // flags for right button
 // brightness values
 uint64_t g_brightness_timer = 0;      // ms for brightness timer
 int g_brightness_interval = 200;      // ms for brightness level update
-int g_sensor_brightness = 0;          // current brightness from sensor
-int g_brightness_readings[NUM_READ];  // brightness readings
-int g_brightness_avg;                 // brightness readings average
-bool g_brightness_auto = true;   // should light be switched on automatically when brightness is low
+int g_brightness_reading = 0;         // current brightness from sensor
+int g_brightness_readings[NUM_READ_AVG];  // brightness readings
+double g_brightness_avg = 0;          // brightness readings average
+double g_brightness_long_avg = 0;     // brightness readings average over an longer period
+bool g_brightness_auto = AUTO_ON_OFF; // should light be switched on automatically when brightness is low
 bool g_brightness_on = false;         // is light on by brightness sensor
 
 // draw values
@@ -127,35 +133,45 @@ void update_sensor_brightness() {
     return;
   }
   // shift readings
-  g_sensor_brightness = analogRead(PIN_BR);
-  for (int i = NUM_READ - 1; i > 0; i--) {
+  g_brightness_reading = analogRead(PIN_BR);
+  for (int i = NUM_READ_AVG - 1; i > 0; i--) {
     g_brightness_readings[i] = g_brightness_readings[i - 1];
   }
   // add new reading
-  g_brightness_readings[0] = g_sensor_brightness;
+  g_brightness_readings[0] = g_brightness_reading;
 
   // calculate average
   int sum = 0;
   int total = 0;
-  for (int i = 0; i < NUM_READ; i++) {
+  for (int i = 0; i < NUM_READ_AVG; i++) {
     if (g_brightness_readings[i] > 0) {
       sum += g_brightness_readings[i];
       total++;
     }
   }
-  if (total > 0) {
-    g_brightness_avg = sum / total;
+  if (total == 0) {
+    // initialize with latest reading if no brightness values
+    g_brightness_avg = g_brightness_reading;
   } else {
-    g_brightness_avg = 999;
+    g_brightness_avg = sum / total;
   }
+  if (g_brightness_long_avg == 0) {
+    g_brightness_long_avg = g_brightness_avg;
+  }
+  g_brightness_long_avg -= g_brightness_long_avg / (NUM_READ_AVG * NUM_READ_LONG_AVG);
+  g_brightness_long_avg += g_brightness_avg / (NUM_READ_AVG * NUM_READ_LONG_AVG);
   g_brightness_timer = now;
-  if (g_brightness_auto) {
+
+  if (AUTO_ON_OFF && g_brightness_auto) {
     if (!g_brightness_on && g_brightness_avg < THRESHOLD_AUTO_ON) {
       // only switch lights on one time when reading is below threshold
       g_brightness_on = true;
       g_lights_on = true;
-    } else if (g_brightness_on && g_brightness_avg > THRESHOLD_AUTO_OFF) {
-      // switch lights on when reading is above threshold
+      g_brightness_long_avg = g_brightness_avg;
+    } else if (g_brightness_on
+        && g_brightness_avg > THRESHOLD_AUTO_OFF
+        && g_brightness_long_avg > THRESHOLD_AUTO_OFF) {
+      // switch lights on when reading is above long threshold (to prevent flickering)
       g_brightness_on = false;
       g_lights_on = false;
     }
@@ -170,7 +186,7 @@ void update_light_request_from_controller() {
   if (current != g_lights_controller) {
     // update light state only if the state has changed
     g_lights_controller = current;
-    if (g_brightness_auto && !g_brightness_on) {
+    if (!g_brightness_auto || (g_brightness_auto && !g_brightness_on)) {
       g_lights_on = current;
     }
   }
@@ -364,11 +380,14 @@ void process_light_function(int func) {
       } else {
         if (g_lights_on) {
           g_lights_on = false;
-          if (g_brightness_auto) {
+          if (AUTO_ON_OFF) {
             g_brightness_auto = false;
           }
         } else {
           g_lights_on = true;
+          if (AUTO_ON_OFF) {
+            g_brightness_auto = true;
+          }
         }
       }
       set_draw_mode(DRAW_DEFAULT);
@@ -844,7 +863,7 @@ void _btn_right_press() {
 void setup() {
   // serial setup
   #if DEBUG == true
-  Serial.begin(9600);
+  Serial.begin(115200);
   #endif
   // pin setup
   pinMode(PIN_BTN_LEFT, INPUT_PULLUP);    // right button
@@ -910,24 +929,30 @@ void loop() {
 
   #if DEBUG == true
   // debug output
-  /*Serial.print("Lights: ");
+  Serial.print("Lights:");
   Serial.print(g_lights_on);
-  Serial.print(", Controller: ");
+  Serial.print(",Controller:");
   Serial.print(g_lights_controller);
-  Serial.print(", Additional: ");
+  Serial.print(",Additional:");
   Serial.print(g_lights_additional);
-  Serial.print(", Left active: ");
+  Serial.print(",Brightness auto:");
+  Serial.print(g_brightness_auto);
+  Serial.print(",Brightness on:");
+  Serial.print(g_brightness_on);
+  Serial.print(",Left active:");
   Serial.print(g_left_active);
-  Serial.print(", Right active: ");
+  Serial.print(",Right active:");
   Serial.print(g_right_active);
-  Serial.print(", Sos active: ");
+  Serial.print(",Sos active:");
   Serial.print(g_sos_active);
-  Serial.print(", Draw lights: ");
+  Serial.print(",Draw lights:");
   Serial.print(g_draw_lights);
-  Serial.print(", Draw mode: ");
+  Serial.print(",Draw mode:");
   Serial.print(g_draw_mode);
-  Serial.print("Brightness:");
+  Serial.print(",Brightness Avg:");
   Serial.print(g_brightness_avg);
-  Serial.println();*/
+  Serial.print(",Brightness Long Avg:");
+  Serial.print(g_brightness_long_avg);
+  Serial.println();
   #endif
 }
