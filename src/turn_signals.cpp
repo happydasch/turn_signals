@@ -168,6 +168,10 @@ void update_sensor_brightness() {
       g_brightness_on = true;
       g_brightness_long_avg = g_brightness_avg;
       g_lights_on = true;
+    } else if (g_brightness_on && g_brightness_avg < THRESHOLD_AUTO_ON) {
+      if (!g_lights_on) {
+        g_lights_on = true;
+      }
     } else if (g_brightness_on
         && g_brightness_avg > THRESHOLD_AUTO_OFF
         && g_brightness_long_avg > THRESHOLD_AUTO_OFF) {
@@ -378,8 +382,17 @@ void process_light_function(int func) {
       } else {
         if (g_lights_on) {
           g_lights_on = false;
+          if (AUTO_ON_OFF) {
+            g_brightness_auto = false;
+          }
         } else {
           g_lights_on = true;
+          if (AUTO_ON_OFF) {
+            g_brightness_auto = true;
+          }
+        }
+        if (AUTO_ON_OFF) {
+          g_brightness_on = false;
         }
       }
       set_draw_mode(DRAW_DEFAULT);
